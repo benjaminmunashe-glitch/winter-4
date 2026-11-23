@@ -741,10 +741,11 @@ async function loadHistory() {
   $("summaryTable").innerHTML = `<tr>${["Route", "Name", "P", "Nights", "Frost nights", "Gritting runs", "Salt t", "Ice – treated", "Ice – untreated", "Runs, never froze", "Held back / no salt"].map(th).join("")}</tr>` +
     summary.map(s => `<tr>${cols.map(k => td(esc(s[k]))).join("")}</tr>`).join("");
   $("histMeta").textContent = `Joined ${c.matched} route-nights.`;
-  renderDecision(); renderHandin();
+  try { renderDecision(); } catch (e) { console.error("Decision panel:", e); }
+  try { renderHandin(); } catch (e) { console.error("Hand-in panel:", e); }
   return joined;
 }
-$("loadHistory").onclick = () => loadHistory().catch(e => $("histMeta").innerHTML = `<span class="warn">${esc(e.message)}</span>`);
+$("loadHistory").onclick = () => loadHistory().catch(e => { console.error(e); $("histMeta").innerHTML = `<span class="warn">${esc(e.message)} — ${esc((e.stack || "").split("\n")[1] || "")}</span>`; });
 $("downloadJoined").onclick = () => {
   if (!joined) return alert("Load five winters first.");
   const cols = ["date", "route_id", "route", "priority", "depot", "min_air_c", "min_ground_c", "min_dewpoint_c", "rain_mm", "hours_ground_le0", "wet", "gritted", "decision", "salt_t", "depot_stock_after_t", "ice_incidents", "notes", "grid"];
@@ -891,7 +892,12 @@ const BENCH = [
     expected: () => { if (!joined) return "Load five winters first."; const d = depotShortages(joined)[0]; return `${d.depot}: ${d.nights} nights short of salt (${d.noSalt} "no salt", ${d.held} "held back (stock)"), stock down to ${d.low} t. No other depot ever ran short.`; },
     check: t => joined ? new RegExp(depotShortages(joined)[0].depot, "i").test(t) : false }
 ];
-const benchStore = () => { try { return JSON.parse(localStorage.getItem("ww_bench") || "[]"); } catch { return []; } };
+const benchStore = () => {
+  try {
+    const a = JSON.parse(localStorage.getItem("ww_bench") || "[]");
+    return Array.isArray(a) ? a.map(r => r && typeof r === "object" ? { ...r, text: String(r.text ?? ""), mark: r.mark === "pass" ? "pass" : "fail" } : null) : [];
+  } catch { return []; }
+};
 const saveBench = r => store.set("ww_bench", JSON.stringify(r));
 const costCents = (i, o) => { const pi = +$("priceIn").value || 0, po = +$("priceOut").value || 0; return ((i || 0) * pi + (o || 0) * po) / 1e6 * 100; };
 $("priceIn").value = store.get("ww_priceIn") ?? ""; $("priceOut").value = store.get("ww_priceOut") ?? "";
@@ -962,8 +968,8 @@ document.querySelectorAll("[data-self]").forEach(cb => {
 function handinMarkdown() {
   const link = location.protocol.startsWith("http") ? location.origin + location.pathname : "https://<your-username>.github.io/winterwatch/";
   const c = joined?.check, score = selfStore().filter(Boolean).length, res = benchStore();
-  const rows = BENCH.map((b, i) => { const r = res[i]; const exp = typeof b.expected === "function" ? b.expected() : b.expected;
-    return `| Q${i + 1} | ${b.q} | ${exp.replace(/\|/g, "/")} | ${r ? r.text.replace(/\s+/g, " ").replace(/\|/g, "/").slice(0, 160) + "…" : "not run"} | ${r ? r.mark.toUpperCase() : "–"} | ${r ? costCents(r.inTok, r.outTok).toFixed(3) + "¢" : "–"} |`; }).join("\n");
+  const rows = BENCH.map((b, i) => { const r = res[i]; const exp = String((typeof b.expected === "function" ? b.expected() : b.expected) ?? "");
+    return `| Q${i + 1} | ${b.q} | ${exp.replace(/\|/g, "/")} | ${r ? String(r.text ?? "(no answer saved)").replace(/\s+/g, " ").replace(/\|/g, "/").slice(0, 160) + "…" : "not run"} | ${r ? String(r.mark ?? "–").toUpperCase() : "–"} | ${r ? costCents(r.inTok, r.outTok).toFixed(3) + "¢" : "–"} |`; }).join("\n");
   const done = res.filter(Boolean);
   const avg = done.length ? (done.reduce((s, r) => s + costCents(r.inTok, r.outTok), 0) / done.length).toFixed(3) : "–";
   const model = done[0]?.model || store.get("ww_model") || "–";
@@ -1003,6 +1009,7 @@ $("copyHandin").onclick = e => { navigator.clipboard?.writeText(handinMarkdown()
 // =====================================================================
 const chatEl = $("chat");
 const renderMd = text => {
+  text = String(text ?? "");
   try { if (window.marked && window.DOMPurify) return DOMPurify.sanitize(marked.parse(text)); } catch {}
   return esc(text).replace(/\n/g, "<br>");
 };
