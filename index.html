@@ -45,6 +45,13 @@
     <p id="keystatus" class="status"></p>
   </section>
 
+  <!-- ===== Part 2: route points ===== -->
+  <section id="routes">
+    <h2>Route points</h2>
+    <p class="status">One point roughly halfway along each route. Source: Google Maps (right-click on the road → copy coordinates).</p>
+    <div style="overflow-x:auto"><table id="routeTable" style="width:100%;border-collapse:collapse"></table></div>
+  </section>
+
   <!-- ===== Ask ===== -->
   <section id="ask">
     <h2>Ask Winter Watch</h2>
@@ -136,6 +143,34 @@ async function askBrain(system, user) {
   if (!r.ok) throw new Error(j.error?.message || r.statusText);
   return { text: j.choices[0].message.content, inTok: j.usage?.prompt_tokens, outTok: j.usage?.completion_tokens, provider, model };
 }
+
+// ---------- Part 2: route points (fill in lat / lon / how) ----------
+// Irish longitudes are NEGATIVE. 4 decimal places is enough.
+const ROUTES = [
+  { id:"R01", route:"N3 Cavan Bypass",          priority:1, km:14, depot:"Cavan",          salt:2.1,  lat:53.9954, lon:-7.3436, how:"OSM way tagged N3 'Cavan Bypass'; point beside Cavan town centre" },
+  { id:"R02", route:"N54 Butlersbridge Road",   priority:1, km:9,  depot:"Cavan",          salt:1.35, lat:54.0187, lon:-7.3442, how:"OSRM driving route Cavan→Butlersbridge (8.1 km), halfway point; on N3 north of Cavan" },
+  { id:"R03", route:"R212 Belturbet Road",      priority:2, km:16, depot:"Cavan",          salt:2.4,  lat:54.0522, lon:-7.3842, how:"OSRM driving route Cavan→Belturbet (17.6 km), halfway point near Butlersbridge. Note: real R212 is the Ballyhaise road" },
+  { id:"R04", route:"R154 Kilnaleck Uplands",   priority:2, km:22, depot:"Ballyjamesduff", salt:3.3,  lat:53.8413, lon:-7.2945, how:"OSM way tagged R154 (Mountnugent Road), point nearest the Kilnaleck–Ballyjamesduff midpoint" },
+  { id:"R05", route:"R165 Bailieborough Road",  priority:2, km:18, depot:"Bailieborough",  salt:2.7,  lat:53.9438, lon:-7.1670, how:"OSM way tagged R165 (Bailieborough Road), point nearest the Cavan–Bailieborough midpoint" },
+  { id:"R06", route:"Lough Gowna Lake Road",    priority:3, km:12, depot:"Ballyjamesduff", salt:1.8,  lat:53.8716, lon:-7.5026, how:"No road number; OSM local road (L25111) on the east shore of Lough Gowna, ~2 km east of Loch Gowna village" },
+  { id:"R07", route:"R188 Cootehill Road",      priority:1, km:20, depot:"Cootehill",      salt:3.0,  lat:54.0411, lon:-7.2211, how:"OSM way tagged R188 (Cavan Road), point nearest the Cavan–Cootehill midpoint" },
+  { id:"R08", route:"N87 Ballyconnell Road",    priority:1, km:17, depot:"Cavan",          salt:2.55, lat:54.0861, lon:-7.5250, how:"OSRM driving route Belturbet→Ballyconnell (11.9 km), halfway point on the N87" },
+  { id:"R09", route:"N3 Virginia South",        priority:1, km:21, depot:"Virginia",       salt:3.15, lat:53.9149, lon:-7.2048, how:"Google Maps right-click on the N3 roughly halfway Cavan→Virginia; checked against OSM N3 geometry" },
+  { id:"R10", route:"R162 Kingscourt Hill",     priority:3, km:15, depot:"Bailieborough",  salt:2.25, lat:53.9325, lon:-6.8843, how:"OSRM driving route Bailieborough→Kingscourt (13.3 km), halfway point. Note: real road here is the R165" },
+];
+
+function renderRoutes() {
+  const th = s => `<th style="text-align:left;border-bottom:1px solid var(--line);padding:4px">${s}</th>`;
+  const td = s => `<td style="border-bottom:1px solid var(--line);padding:4px">${s}</td>`;
+  $("routeTable").innerHTML =
+    `<tr>${["Route","Name","P","Lat","Lon","How found","Map"].map(th).join("")}</tr>` +
+    ROUTES.map(r => `<tr>${[
+      r.id, r.route, r.priority,
+      r.lat ?? "–", r.lon ?? "–", r.how || "–",
+      r.lat != null ? `<a href="https://www.google.com/maps?q=${r.lat},${r.lon}" target="_blank">map</a>` : "–"
+    ].map(td).join("")}</tr>`).join("");
+}
+renderRoutes();
 
 // ---------- ask button ----------
 const SYSTEM = `You are Winter Watch, a decision-support assistant for the County Cavan roads team.
